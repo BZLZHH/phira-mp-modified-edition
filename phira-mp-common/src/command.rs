@@ -46,6 +46,7 @@ impl CompactPos {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Varchar<const N: usize>(String);
+
 impl<const N: usize> Display for Varchar<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
@@ -78,6 +79,10 @@ impl<const N: usize> BinaryData for Varchar<N> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RoomId(Varchar<20>);
 impl RoomId {
+	pub fn new(id: &str) -> Self {
+        RoomId(Varchar::<20>(id.to_string()))
+    }
+	
     fn validate(self) -> Result<Self> {
         if self.0 .0.is_empty()
             || !self
@@ -153,7 +158,7 @@ pub struct JudgeEvent {
     pub judgement: Judgement,
 }
 
-#[derive(Debug, BinaryData)]
+#[derive(Debug, BinaryData, Clone)]
 pub enum ClientCommand {
     Ping,
 

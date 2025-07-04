@@ -6,6 +6,8 @@ use std::sync::Arc;
 use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
 use tracing::{info, warn};
 use uuid::Uuid;
+use tokio::io::AsyncReadExt;
+
 
 #[derive(Debug, Deserialize)]
 pub struct Chart {
@@ -39,15 +41,17 @@ pub struct ServerState {
 }
 
 pub struct Server {
-    state: Arc<ServerState>,
+    pub state: Arc<ServerState>,
     listener: TcpListener,
 
     lost_con_handle: JoinHandle<()>,
+	pub sharing_state:Arc<String>,
 }
 
 impl From<TcpListener> for Server {
     fn from(listener: TcpListener) -> Self {
         let (lost_con_tx, mut lost_con_rx) = mpsc::channel(16);
+		let sharing_state = Arc::new("false".to_string());
         let state = Arc::new(ServerState {
             sessions: IdMap::default(),
             users: SafeMap::default(),
@@ -60,7 +64,7 @@ impl From<TcpListener> for Server {
             let state = Arc::clone(&state);
             async move {
                 while let Some(id) = lost_con_rx.recv().await {
-                    warn!("lost connection with {id}");
+                    warn!("与 {id} 断开连接");
                     if let Some(session) = state.sessions.write().await.remove(&id) {
                         if session
                             .user
@@ -80,7 +84,7 @@ impl From<TcpListener> for Server {
         Self {
             listener,
             state,
-
+			sharing_state,
             lost_con_handle,
         }
     }
@@ -88,7 +92,7 @@ impl From<TcpListener> for Server {
 
 impl Server {
     pub async fn accept(&self) -> Result<()> {
-        let (stream, addr) = self.listener.accept().await?;
+        let (mut stream, addr) = self.listener.accept().await?;
         let mut guard = self.state.sessions.write().await;
         let entry = vacant_entry(&mut guard);
         let session = Session::new(*entry.key(), stream, Arc::clone(&self.state)).await?;
@@ -99,6 +103,8 @@ impl Server {
         );
         entry.insert(session);
         Ok(())
+		
+		
     }
 }
 
